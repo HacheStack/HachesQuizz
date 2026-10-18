@@ -65,12 +65,17 @@ fun PantallaInicio(
             .padding(24.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
+
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.End,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Modo oscuro")
+            Text(
+                text = "Modo oscuro",
+                color = MaterialTheme.colorScheme.secondary
+            )
+
             Spacer(Modifier.width(8.dp))
 
             Switch(
@@ -78,6 +83,7 @@ fun PantallaInicio(
                 onCheckedChange = cambiarTema
             )
         }
+
 
         Spacer(Modifier.weight(1f))
 
