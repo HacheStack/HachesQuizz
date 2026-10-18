@@ -1,8 +1,6 @@
 # 🧠 Hache's Quizz
 
-**Hache's Quizz** es una aplicación de preguntas de **verdadero o falso** para Android, desarrollada con **Kotlin y Jetpack Compose** como práctica de **2.º de Desarrollo de Aplicaciones Multiplataforma (DAM)**.
-
-El objetivo del proyecto ha sido aplicar lo aprendido en clase y crear un juego sencillo, funcional y con una identidad propia.
+**Hache's Quizz** es una aplicación de preguntas de **verdadero o falso** para Android, desarrollada con **Kotlin y Jetpack Compose** 
 
 ## 🎮 Funcionalidades
 
@@ -21,10 +19,6 @@ El objetivo del proyecto ha sido aplicar lo aprendido en clase y crear un juego 
 - Android Studio
 - `ArrayList`, almacenamiento interno de archivos y `SharedPreferences`
 - `CountDownTimer` para el modo contrarreloj
-
-## 💜 Un detalle personal
-
-La paleta de colores, el modo niñ@s y parte de las preguntas surgieron gracias a mi hija **Ainhoa**, que quiso participar en el proyecto y tener una modalidad a la que también pudiera jugar.
 
 ## ▶️ Cómo ejecutarlo
 
