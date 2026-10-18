@@ -33,6 +33,3 @@ La paleta de colores, el modo niñ@s y parte de las preguntas surgieron gracias 
 3. Deja que Gradle sincronice el proyecto.
 4. Ejecútalo en un emulador o dispositivo Android compatible.
 
----
-
-📚 **Proyecto académico de 2.º de DAM.** Forma parte de mi aprendizaje y de los proyectos, escolares y personales, que voy compartiendo en GitHub para mostrar mi evolución como desarrollador.
