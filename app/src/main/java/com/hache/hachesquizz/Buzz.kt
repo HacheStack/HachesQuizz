@@ -1,11 +1,24 @@
 package com.hache.hachesquizz
 
+import android.content.Intent
 import android.os.Bundle
 import android.os.CountDownTimer
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.ExitTransition
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -13,412 +26,318 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.colorResource
+import androidx.compose.ui.res.dimensionResource
 import androidx.compose.ui.res.painterResource
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.delay
 import kotlin.random.Random
 
 class Buzz : ComponentActivity() {
+    private val reproductor by lazy { ControladorAudio(this) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-
-        // Recuperar el modo de preguntas
-        val modoNinos = intent.getBooleanExtra(
-            "modo_ninos",
-            false
-        )
-
-        // Recuperar el tiempo elegido
-        val segundosPorPregunta = intent.getIntExtra(
-            "segundos_por_pregunta",
-            0
-        )
+        val modoNinos = intent.getBooleanExtra("modo_ninos", false)
+        val segundos = intent.getIntExtra("segundos_por_pregunta", 0)
 
         setContent {
-            TemaHaches(
-                oscuro = Configuracion.esOscuro(this)
-            ) {
+            TemaHaches(oscuro = Configuracion.esOscuro(this)) {
                 PantallaJuego(
                     modoNinos = modoNinos,
-                    segundosPorPregunta = segundosPorPregunta
+                    segundosPorPregunta = segundos,
+                    audio = reproductor,
+                    volver = {
+                        reproductor.pausar()
+                        EfectosSonido.liberar()
+                        val intent = Intent(this@Buzz, MenuPrincipal::class.java).apply {
+                            flags = Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
+                            putExtra("ir_al_menu_principal", true)
+                        }
+                        startActivity(intent)
+                        finish()
+                    }
                 )
             }
         }
+    }
+
+    override fun onStop() {
+        reproductor.pausar()
+        EfectosSonido.liberar()
+        super.onStop()
+    }
+
+    override fun onDestroy() {
+        reproductor.liberar()
+        EfectosSonido.liberar()
+        super.onDestroy()
     }
 }
 
 @Composable
 fun PantallaJuego(
     modoNinos: Boolean,
-    segundosPorPregunta: Int
+    segundosPorPregunta: Int,
+    audio: ControladorAudio,
+    volver: () -> Unit = {}
 ) {
+    BackHandler {
+        volver()
+    }
 
     val context = LocalContext.current
-
-    // PREGUNTAS MODO CLASICO
-    val preguntasClasico: ArrayList<Pregunta> = remember {
-        arrayListOf(
-            Pregunta("¿Android está basado en Linux?", true),
-            Pregunta("¿Java fue creado por Microsoft?", false),
-            Pregunta("¿Kotlin es un lenguaje de programación?", true),
-            Pregunta("¿HTML es una base de datos?", false),
-            Pregunta("¿Python permite programar con objetos?", true)
-        )
-    }
-
-    // PREGUNTAS MODO NIÑOS
-    val preguntasNinos: ArrayList<Pregunta> = remember {
-        arrayListOf(
-            Pregunta("¿Leonardo da Vinci pintó la Mona Lisa?", true),
-            Pregunta("¿El Amazonas es el río más caudaloso del mundo?", true),
-            Pregunta("¿Mercurio es el planeta más caliente?", false),
-            Pregunta("¿El Principito vive en un planeta muy pequeño?", true),
-            Pregunta("¿El Sol es un planeta?", false)
-        )
-    }
-
-
-    // Cargar preguntas desde el fichero de texto
     val preguntas: ArrayList<Pregunta> = remember(modoNinos) {
         RepositorioPreguntas.cargar(context, modoNinos)
     }
 
-    // Pregunta actual
-    var indicePregunta by rememberSaveable {
-        mutableIntStateOf(0)
-    }
+    var indicePregunta by rememberSaveable { mutableIntStateOf(0) }
+    var respuestaSeleccionada by rememberSaveable { mutableStateOf<Boolean?>(null) }
+    var tiempoRestante by rememberSaveable { mutableIntStateOf(segundosPorPregunta) }
+    var tiempoAgotado by rememberSaveable { mutableStateOf(false) }
+    var turno by rememberSaveable { mutableIntStateOf(0) }
+    var posicionAudioGuardada by rememberSaveable { mutableIntStateOf(0) }
 
-    // Respuesta seleccionada
-    var respuestaSeleccionada by rememberSaveable {
-        mutableStateOf<Boolean?>(null)
-    }
-
-    // Tiempo que queda
-    var tiempoRestante by rememberSaveable {
-        mutableIntStateOf(segundosPorPregunta)
-    }
-
-    // Indica si ha terminado el tiempo
-    var tiempoAgotado by rememberSaveable {
-        mutableStateOf(false)
-    }
-
-    // Identificador del turno actual
-    var turno by rememberSaveable {
-        mutableIntStateOf(0)
-    }
-
+    // Una sola lista: el repositorio garantiza preguntas iniciales para ambas categorías.
     val preguntaActual = preguntas[indicePregunta]
 
-    // TEMPORIZADOR
-    DisposableEffect(
-        turno,
-        segundosPorPregunta,
-        respuestaSeleccionada,
-        tiempoAgotado
-    ) {
+    // Cambiar de pregunta siempre prepara su audio, incluso si ALEATORIA repite índice.
+    // En una rotación se recupera la posición guardada, sin reproducción automática.
+    LaunchedEffect(indicePregunta, turno) {
+        EfectosSonido.liberar()
+        audio.preparar(Recursos.audio(preguntaActual.audio), posicionAudioGuardada)
+    }
 
-        val temporizador =
-            if (
-                segundosPorPregunta > 0 &&
-                respuestaSeleccionada == null &&
-                !tiempoAgotado &&
-                tiempoRestante > 0
-            ) {
+    LaunchedEffect(audio.posicionMs) {
+        if (audio.cargado) posicionAudioGuardada = audio.posicionMs
+    }
 
-                object : CountDownTimer(
-                    tiempoRestante * 1000L,
-                    1000L
-                ) {
-
-                    override fun onTick(
-                        millisUntilFinished: Long
-                    ) {
-                        tiempoRestante =
-                            ((millisUntilFinished + 999L) / 1000L).toInt()
-                    }
-
-                    override fun onFinish() {
-
-                        if (
-                            respuestaSeleccionada == null &&
-                            !tiempoAgotado
-                        ) {
-                            tiempoRestante = 0
-                            tiempoAgotado = true
-
-                            Estadisticas.registrarTiempoAgotado(
-                                context
-                            )
-                        }
-                    }
-
-                }.start()
-
-            } else {
-                null
-            }
-
-        // Cancelar el contador anterior
-        onDispose {
-            temporizador?.cancel()
+    // La barra de progreso se actualiza aproximadamente cada medio segundo.
+    LaunchedEffect(audio.reproduciendo) {
+        while (audio.reproduciendo) {
+            audio.refrescarPosicion()
+            delay(500L)
         }
     }
 
-    // FUNCION PARA CAMBIAR DE PREGUNTA
-    fun cambiarPregunta(nuevoIndice: Int) {
+    DisposableEffect(turno, segundosPorPregunta, respuestaSeleccionada, tiempoAgotado) {
+        val cuentaAtras = if (
+            segundosPorPregunta > 0 &&
+            respuestaSeleccionada == null &&
+            !tiempoAgotado &&
+            tiempoRestante > 0
+        ) {
+            object : CountDownTimer(tiempoRestante * 1000L, 1000L) {
+                override fun onTick(millisUntilFinished: Long) {
+                    tiempoRestante = ((millisUntilFinished + 999L) / 1000L).toInt()
+                }
 
+                override fun onFinish() {
+                    if (respuestaSeleccionada == null && !tiempoAgotado) {
+                        tiempoRestante = 0
+                        tiempoAgotado = true
+                        audio.pausar()
+                        Estadisticas.registrarTiempoAgotado(context)
+                        EfectosSonido.reproducir(context, false)
+                    }
+                }
+            }.start()
+        } else null
+
+        onDispose { cuentaAtras?.cancel() }
+    }
+
+    fun cambiarPregunta(nuevoIndice: Int) {
+        audio.pausar()
+        EfectosSonido.liberar()
         indicePregunta = nuevoIndice
         respuestaSeleccionada = null
         tiempoAgotado = false
         tiempoRestante = segundosPorPregunta
-
-        // Reiniciar el temporizador
+        posicionAudioGuardada = 0
         turno++
     }
+
+    fun responder(valor: Boolean) {
+        if (respuestaSeleccionada == null && !tiempoAgotado) {
+            val acierto = valor == preguntaActual.resultado
+            audio.pausar()
+            Estadisticas.registrarRespuesta(context, acierto)
+            EfectosSonido.reproducir(context, acierto)
+            respuestaSeleccionada = valor
+        }
+    }
+
+    val espacio = dimensionResource(R.dimen.hq_espacio_medio)
+    val espacioGrande = dimensionResource(R.dimen.hq_espacio_grande)
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background)
             .safeDrawingPadding()
-            .padding(24.dp),
+            .verticalScroll(rememberScrollState())
+            .padding(dimensionResource(R.dimen.hq_margen_pantalla)),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Center
     ) {
-
-        // NOMBRE DEL MODO
         Text(
-            text = if (modoNinos) {
-                "MODO NIÑ@S"
-            } else {
-                "MODO CLÁSICO"
-            },
+            text = stringResource(
+                if (modoNinos) R.string.hq_modo_ninos else R.string.hq_modo_clasico
+            ),
             fontSize = 20.sp,
             fontWeight = FontWeight.Bold,
             color = MaterialTheme.colorScheme.secondary
         )
+        Spacer(Modifier.height(espacio))
 
-        Spacer(Modifier.height(12.dp))
-
-        // NUMERO DE PREGUNTA
         Text(
-            text = "Pregunta ${indicePregunta + 1} de ${preguntas.size}",
-            fontSize = 16.sp,
+            text = stringResource(R.string.hq_pregunta_numero, indicePregunta + 1, preguntas.size),
             color = MaterialTheme.colorScheme.onBackground
         )
+        Spacer(Modifier.height(espacio))
 
-        Spacer(Modifier.height(16.dp))
-
-        // MOSTRAR TIEMPO SI ES CONTRARRELOJ
         if (segundosPorPregunta > 0) {
-
             Text(
-                text = "Tiempo restante: $tiempoRestante s",
-                fontSize = 20.sp,
+                text = stringResource(R.string.hq_tiempo_restante, tiempoRestante),
                 fontWeight = FontWeight.Bold,
-                color = if (tiempoRestante <= 3) {
-                    Color(0xFFFF5252)
-                } else {
-                    MaterialTheme.colorScheme.secondary
-                }
+                color = if (tiempoRestante <= 3) colorResource(R.color.hq_error)
+                else MaterialTheme.colorScheme.secondary
             )
-
-            Spacer(Modifier.height(16.dp))
+            Spacer(Modifier.height(espacio))
         }
 
-        // PREGUNTA
-        Text(
-            text = preguntaActual.texto,
-            fontSize = 23.sp,
-            fontWeight = FontWeight.Bold,
-            textAlign = TextAlign.Center,
-            color = MaterialTheme.colorScheme.onBackground
-        )
+        // 1.ª animación: entrada y salida de preguntas.
+        AnimatedContent(
+            targetState = Pair(indicePregunta, turno),
+            transitionSpec = {
+                (slideInHorizontally { it / 2 } + fadeIn()) togetherWith
+                    (slideOutHorizontally { -it / 2 } + fadeOut())
+            },
+            label = "animacionPregunta"
+        ) { (indice, _) ->
+            Text(
+                text = preguntas[indice].texto,
+                fontSize = 23.sp,
+                fontWeight = FontWeight.Bold,
+                textAlign = TextAlign.Center,
+                color = MaterialTheme.colorScheme.onBackground
+            )
+        }
+        Spacer(Modifier.height(espacioGrande))
 
-        Spacer(Modifier.height(32.dp))
+        // Las preguntas sin audio no muestran este panel.
+        if (preguntaActual.tieneAudio) {
+            PanelAudio(audio, preguntaActual.infoUrl)
+            Spacer(Modifier.height(espacioGrande))
+        }
 
-        // BOTONES VERDADERO Y FALSO
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+            horizontalArrangement = Arrangement.spacedBy(espacio)
         ) {
-
-            // VERDADERO
             BotonRespuesta(
-                texto = "VERDADERO",
+                texto = stringResource(R.string.hq_verdadero),
                 valor = true,
                 respuestaCorrecta = preguntaActual.resultado,
-                respondida = respuestaSeleccionada != null ||
-                        tiempoAgotado,
+                respondida = respuestaSeleccionada != null || tiempoAgotado,
                 modifier = Modifier.weight(1f),
-                onClick = {
-
-                    if (
-                        respuestaSeleccionada == null &&
-                        !tiempoAgotado
-                    ) {
-
-                        Estadisticas.registrarRespuesta(
-                            context,
-                            true == preguntaActual.resultado
-                        )
-
-                        respuestaSeleccionada = true
-                    }
-                }
+                onClick = { responder(true) }
             )
-
-            // FALSO
             BotonRespuesta(
-                texto = "FALSO",
+                texto = stringResource(R.string.hq_falso),
                 valor = false,
                 respuestaCorrecta = preguntaActual.resultado,
-                respondida = respuestaSeleccionada != null ||
-                        tiempoAgotado,
+                respondida = respuestaSeleccionada != null || tiempoAgotado,
                 modifier = Modifier.weight(1f),
-                onClick = {
-
-                    if (
-                        respuestaSeleccionada == null &&
-                        !tiempoAgotado
-                    ) {
-
-                        Estadisticas.registrarRespuesta(
-                            context,
-                            false == preguntaActual.resultado
-                        )
-
-                        respuestaSeleccionada = false
-                    }
-                }
+                onClick = { responder(false) }
             )
         }
+        Spacer(Modifier.height(espacio))
 
-        Spacer(Modifier.height(24.dp))
-
-        // RESULTADO DE LA RESPUESTA
-        if (tiempoAgotado) {
-
+        // 2.ª animación: aparece el resultado después de responder.
+        AnimatedVisibility(
+            visible = tiempoAgotado || respuestaSeleccionada != null,
+            enter = scaleIn() + fadeIn(),
+            exit = ExitTransition.None
+        ) {
+            val acierto = respuestaSeleccionada == preguntaActual.resultado
             Text(
-                text = "¡Tiempo agotado! Respuesta incorrecta",
-                color = Color(0xFFFF5252),
+                text = when {
+                    tiempoAgotado -> stringResource(R.string.hq_tiempo_agotado)
+                    acierto -> stringResource(R.string.hq_correcto)
+                    else -> stringResource(R.string.hq_incorrecto)
+                },
+                color = colorResource(
+                    if (acierto && !tiempoAgotado) R.color.hq_acierto else R.color.hq_error
+                ),
                 fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
                 textAlign = TextAlign.Center
             )
-
-        } else if (respuestaSeleccionada != null) {
-
-            val acierto =
-                respuestaSeleccionada == preguntaActual.resultado
-
-            Text(
-                text = if (acierto) {
-                    "¡Correcto!"
-                } else {
-                    "Incorrecto"
-                },
-                color = if (acierto) {
-                    Color(0xFF4CAF50)
-                } else {
-                    Color(0xFFFF5252)
-                },
-                fontSize = 20.sp,
-                fontWeight = FontWeight.Bold
-            )
         }
+        Spacer(Modifier.height(espacioGrande))
 
-        Spacer(Modifier.height(32.dp))
-
-        // BOTONES ANTERIOR Y SIGUIENTE
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.spacedBy(espacio)
         ) {
-
-            // ANTERIOR
             Button(
                 onClick = {
                     Estadisticas.registrarClick(context)
-
-                    val anterior =
-                        (indicePregunta - 1 + preguntas.size) %
-                                preguntas.size
-
-                    cambiarPregunta(anterior)
+                    cambiarPregunta((indicePregunta - 1 + preguntas.size) % preguntas.size)
                 },
                 modifier = Modifier.weight(1f),
-                contentPadding = PaddingValues(horizontal = 8.dp)
+                contentPadding = PaddingValues(horizontal = 6.dp)
             ) {
-
                 Icon(
-                    painter = painterResource(
-                        R.drawable.ic_arrow_back
-                    ),
-                    contentDescription = "Pregunta anterior",
+                    painter = painterResource(R.drawable.ic_arrow_back),
+                    contentDescription = stringResource(R.string.hq_cd_anterior),
                     modifier = Modifier.size(18.dp)
                 )
-
                 Spacer(Modifier.width(4.dp))
-
-                Text("ANTERIOR", fontSize = 12.sp)
+                Text(stringResource(R.string.hq_anterior), fontSize = 12.sp)
             }
-
-            // SIGUIENTE
             Button(
                 onClick = {
                     Estadisticas.registrarClick(context)
-
-                    val siguiente =
-                        (indicePregunta + 1) % preguntas.size
-
-                    cambiarPregunta(siguiente)
+                    cambiarPregunta((indicePregunta + 1) % preguntas.size)
                 },
                 modifier = Modifier.weight(1f),
-                contentPadding = PaddingValues(horizontal = 8.dp)
+                contentPadding = PaddingValues(horizontal = 6.dp)
             ) {
-
-                Text("SIGUIENTE", fontSize = 12.sp)
-
+                Text(stringResource(R.string.hq_siguiente), fontSize = 12.sp)
                 Spacer(Modifier.width(4.dp))
-
                 Icon(
-                    painter = painterResource(
-                        R.drawable.ic_arrow_forward
-                    ),
-                    contentDescription = "Siguiente pregunta",
+                    painter = painterResource(R.drawable.ic_arrow_forward),
+                    contentDescription = stringResource(R.string.hq_cd_siguiente),
                     modifier = Modifier.size(18.dp)
                 )
             }
         }
+        Spacer(Modifier.height(espacio))
 
-        Spacer(Modifier.height(12.dp))
-
-        // BOTON ALEATORIA
-        Button(
+        BotonSecundario(
+            texto = stringResource(R.string.hq_aleatoria),
             onClick = {
                 Estadisticas.registrarClick(context)
+                cambiarPregunta(Random.nextInt(preguntas.size))
+            }
+        )
 
-                val aleatoria = Random.nextInt(preguntas.size)
+        Spacer(Modifier.height(espacio))
 
-                cambiarPregunta(aleatoria)
-            },
-            modifier = Modifier.fillMaxWidth(),
-            colors = ButtonDefaults.buttonColors(
-                containerColor = MaterialTheme.colorScheme.tertiary,
-                contentColor = MaterialTheme.colorScheme.onTertiary
-            )
-        ) {
-            Text("ALEATORIA")
-        }
+        BotonSecundario(
+            texto = stringResource(R.string.hq_volver_menu),
+            onClick = volver
+        )
     }
 }
 
-// COMPONENTE REUTILIZABLE DE RESPUESTA
 @Composable
 fun BotonRespuesta(
     texto: String,
@@ -428,24 +347,22 @@ fun BotonRespuesta(
     modifier: Modifier = Modifier,
     onClick: () -> Unit
 ) {
-
-    val colorBoton = when {
+    val color = when {
         !respondida -> MaterialTheme.colorScheme.primary
-        valor == respuestaCorrecta -> Color(0xFF2E7D32)
-        else -> Color(0xFFC62828)
+        valor == respuestaCorrecta -> colorResource(R.color.hq_verde)
+        else -> colorResource(R.color.hq_rojo)
     }
-
     Button(
         onClick = onClick,
         modifier = modifier,
         enabled = !respondida,
         colors = ButtonDefaults.buttonColors(
-            containerColor = colorBoton,
+            containerColor = color,
             contentColor = MaterialTheme.colorScheme.onPrimary,
-            disabledContainerColor = colorBoton,
+            disabledContainerColor = color,
             disabledContentColor = Color.White
         )
     ) {
-        Text(texto)
+        Text(texto, fontSize = 12.sp)
     }
 }

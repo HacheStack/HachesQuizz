@@ -2,6 +2,12 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
 
+    <!-- Permisos para Google Maps y conectividad -->
+    <uses-permission android:name="android.permission.INTERNET" />
+    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
+    <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION" />
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
     <application
         android:allowBackup="true"
         android:dataExtractionRules="@xml/data_extraction_rules"
@@ -11,6 +17,52 @@
         android:roundIcon="@mipmap/ic_launcher_round"
         android:supportsRtl="true"
         android:theme="@style/Theme.HachesQuizz">
+
+        <!-- Clave de Google Maps inyectada de forma segura desde build.gradle.kts / local.properties -->
+        <meta-data
+            android:name="com.google.android.geo.API_KEY"
+            android:value="${MAPS_API_KEY}" />
+
+        <!-- Práctica 4: Actividades nuevas -->
+        <activity
+            android:name=".LoginActivity"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:theme="@style/Theme.HachesQuizz"
+            android:windowSoftInputMode="adjustResize">
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+        <activity
+            android:name=".BienvenidaActivity"
+            android:exported="false"
+            android:theme="@style/Theme.HachesQuizz" />
+
+        <activity
+            android:name=".GaleriaActivity"
+            android:exported="false"
+            android:theme="@style/Theme.HachesQuizz" />
+
+        <activity
+            android:name=".MapaActivity"
+            android:exported="false"
+            android:theme="@style/Theme.HachesQuizz" />
+
+        <activity
+            android:name=".AgregarLugarActivity"
+            android:exported="false"
+            android:theme="@style/Theme.HachesQuizz"
+            android:windowSoftInputMode="adjustResize" />
+
+        <!-- Prácticas anteriores (2 y 3) -->
+        <activity
+            android:name=".MainActivity"
+            android:exported="false"
+            android:theme="@style/Theme.HachesQuizz"
+            android:windowSoftInputMode="adjustResize" />
 
         <activity
             android:name=".MenuPrincipal"
@@ -27,21 +79,6 @@
         <activity
             android:name=".AgregarPregunta"
             android:exported="false" />
-
-        <activity
-            android:name=".MainActivity"
-            android:exported="true"
-            android:label="@string/app_name"
-            android:theme="@style/Theme.HachesQuizz"
-            android:windowSoftInputMode="adjustResize">
-
-            <intent-filter>
-                <action android:name="android.intent.action.MAIN" />
-
-                <category android:name="android.intent.category.LAUNCHER" />
-            </intent-filter>
-
-        </activity>
 
     </application>
 

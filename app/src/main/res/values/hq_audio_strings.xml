@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="hq_audio_disponible">Audio disponible: escucha antes de responder</string>
+    <string name="hq_audio_no_disponible">No se ha podido cargar el audio</string>
+    <string name="hq_reproducir">Reproducir audio</string>
+    <string name="hq_pausar">Pausar audio</string>
+    <string name="hq_bucle_activado">BUCLE: ACTIVADO</string>
+    <string name="hq_bucle_desactivado">BUCLE: DESACTIVADO</string>
+    <string name="hq_mas_informacion">MÁS INFORMACIÓN</string>
+    <string name="hq_error_web">No hay ninguna aplicación para abrir el enlace</string>
+    <string name="hq_tiempo_agotado">¡Tiempo agotado! Respuesta incorrecta</string>
+    <string name="hq_correcto">¡Correcto!</string>
+    <string name="hq_incorrecto">Incorrecto</string>
+    <string name="hq_modo_ninos">MODO NIÑ@S</string>
+    <string name="hq_modo_clasico">MODO CLÁSICO</string>
+    <string name="hq_pregunta_numero">Pregunta %1$d de %2$d</string>
+    <string name="hq_tiempo_restante">Tiempo restante: %1$d s</string>
+    <string name="hq_verdadero">VERDADERO</string>
+    <string name="hq_falso">FALSO</string>
+    <string name="hq_anterior">ANTERIOR</string>
+    <string name="hq_siguiente">SIGUIENTE</string>
+    <string name="hq_aleatoria">ALEATORIA</string>
+    <string name="hq_cd_anterior">Pregunta anterior</string>
+    <string name="hq_cd_siguiente">Pregunta siguiente</string>
+    <string name="hq_volver_menu">VOLVER AL MENÚ</string>
+</resources>

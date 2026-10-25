@@ -3,12 +3,13 @@ package com.hache.hachesquizz
 
 import android.content.Intent
 import android.os.Bundle
-import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -16,21 +17,38 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
 class MenuPrincipal : ComponentActivity() {
+
+    private var irAlMenuPrincipal by mutableStateOf(false)
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        if (intent.getBooleanExtra("ir_al_menu_principal", false)) {
+            irAlMenuPrincipal = true
+        }
+    }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         setContent {
 
-            // 0 = Menu principal
-            // 1 = Seleccion de modo
-            // 2 = Seleccion de dificultad
+            // 0 = Menú principal
+            // 1 = Selección de modo
+            // 2 = Selección de dificultad
             var pantalla by rememberSaveable {
                 mutableIntStateOf(0)
+            }
+
+            LaunchedEffect(irAlMenuPrincipal) {
+                if (irAlMenuPrincipal) {
+                    pantalla = 0
+                    irAlMenuPrincipal = false
+                }
             }
 
             var modoNinos by rememberSaveable {
@@ -38,7 +56,7 @@ class MenuPrincipal : ComponentActivity() {
             }
 
             TemaHaches(
-                oscuro = Configuracion.esOscuro(this)
+                oscuro = Configuracion.esOscuro(this@MenuPrincipal)
             ) {
 
                 BackHandler(enabled = pantalla != 0) {
@@ -75,12 +93,17 @@ class MenuPrincipal : ComponentActivity() {
                                 Buzz::class.java
                             )
 
-                            intent.putExtra("modo_ninos", modoNinos)
+                            intent.putExtra(
+                                "modo_ninos",
+                                modoNinos
+                            )
+
                             intent.putExtra(
                                 "segundos_por_pregunta",
                                 segundos
                             )
 
+                            pantalla = 0
                             startActivity(intent)
                         },
                         volver = {
@@ -93,7 +116,46 @@ class MenuPrincipal : ComponentActivity() {
     }
 }
 
-// MENU PRINCIPAL
+// CONTENEDOR COMÚN PARA LAS TRES PANTALLAS
+// Mantiene el fondo del tema y permite desplazarse en horizontal.
+@Composable
+private fun ContenedorMenu(
+    contenido: @Composable ColumnScope.() -> Unit
+) {
+
+    BoxWithConstraints(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .safeDrawingPadding()
+    ) {
+
+        val alturaDisponible = maxHeight
+
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .verticalScroll(rememberScrollState())
+                .padding(24.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(
+                        min = (alturaDisponible - 48.dp)
+                            .coerceAtLeast(0.dp)
+                    ),
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+                content = contenido
+            )
+        }
+    }
+}
+
+// MENÚ PRINCIPAL
 @Composable
 fun PantallaMenu(
     jugar: () -> Unit,
@@ -102,23 +164,7 @@ fun PantallaMenu(
 
     val context = LocalContext.current
 
-    fun mostrarAviso() {
-        Toast.makeText(
-            context,
-            "Esta pantalla la haremos pronto",
-            Toast.LENGTH_SHORT
-        ).show()
-    }
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .safeDrawingPadding()
-            .padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
+    ContenedorMenu {
 
         Text(
             text = "Hache's Quizz",
@@ -136,7 +182,6 @@ fun PantallaMenu(
 
         Spacer(Modifier.height(40.dp))
 
-        // JUGAR
         Button(
             onClick = jugar,
             modifier = Modifier.fillMaxWidth()
@@ -146,36 +191,50 @@ fun PantallaMenu(
 
         Spacer(Modifier.height(12.dp))
 
-
-        // AÑADIR PREGUNTAS
         Button(
             onClick = {
-                val intent = Intent(
-                    context,
-                    AgregarPregunta::class.java
+                context.startActivity(
+                    Intent(
+                        context,
+                        AgregarPregunta::class.java
+                    )
                 )
-                context.startActivity(intent)
             },
             modifier = Modifier.fillMaxWidth()
         ) {
             Text("AÑADIR PREGUNTAS")
         }
 
-
         Spacer(Modifier.height(12.dp))
 
-        // ESTADISTICAS
         Button(
             onClick = {
-                val intent = Intent(
-                    context,
-                    Resultados::class.java
+                context.startActivity(
+                    Intent(
+                        context,
+                        Resultados::class.java
+                    )
                 )
-                context.startActivity(intent)
             },
             modifier = Modifier.fillMaxWidth()
         ) {
             Text("ESTADÍSTICAS")
+        }
+
+        Spacer(Modifier.height(12.dp))
+
+        Button(
+            onClick = {
+                context.startActivity(
+                    Intent(
+                        context,
+                        MapaActivity::class.java
+                    )
+                )
+            },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Text("EXPLORADOR DE MAPAS")
         }
 
         Spacer(Modifier.height(24.dp))
@@ -192,22 +251,14 @@ fun PantallaMenu(
     }
 }
 
-// SELECCION DE MODO
+// SELECCIÓN DE MODO
 @Composable
 fun PantallaSeleccionModo(
     jugar: (Boolean) -> Unit,
     volver: () -> Unit
 ) {
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .safeDrawingPadding()
-            .padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
+    ContenedorMenu {
 
         Text(
             text = "Hache's Quizz",
@@ -220,7 +271,8 @@ fun PantallaSeleccionModo(
 
         Text(
             text = "ELIGE TU MODO DE JUEGO",
-            color = MaterialTheme.colorScheme.onBackground
+            color = MaterialTheme.colorScheme.onBackground,
+            textAlign = TextAlign.Center
         )
 
         Spacer(Modifier.height(40.dp))
@@ -255,7 +307,7 @@ fun PantallaSeleccionModo(
     }
 }
 
-// SELECCION DE DIFICULTAD
+// SELECCIÓN DE DIFICULTAD
 @Composable
 fun PantallaSeleccionTiempo(
     modoNinos: Boolean,
@@ -263,15 +315,7 @@ fun PantallaSeleccionTiempo(
     volver: () -> Unit
 ) {
 
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
-            .safeDrawingPadding()
-            .padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
+    ContenedorMenu {
 
         Text(
             text = "Hache's Quizz",
@@ -301,7 +345,6 @@ fun PantallaSeleccionTiempo(
 
         Spacer(Modifier.height(32.dp))
 
-        // SIN TIEMPO
         Button(
             onClick = { jugar(0) },
             modifier = Modifier.fillMaxWidth()
@@ -311,7 +354,6 @@ fun PantallaSeleccionTiempo(
 
         Spacer(Modifier.height(12.dp))
 
-        // FACIL: 15 SEGUNDOS
         Button(
             onClick = { jugar(15) },
             modifier = Modifier.fillMaxWidth()
@@ -321,7 +363,6 @@ fun PantallaSeleccionTiempo(
 
         Spacer(Modifier.height(12.dp))
 
-        // DIFICIL: 8 SEGUNDOS
         Button(
             onClick = { jugar(8) },
             modifier = Modifier.fillMaxWidth()

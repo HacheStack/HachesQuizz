@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Estilo Android reutilizable para el SeekBar integrado en Compose. -->
+    <style name="HqAudioSeekBar">
+        <item name="android:progressTint">@color/hq_rosa</item>
+        <item name="android:thumbTint">@color/hq_rosa</item>
+        <item name="android:progressBackgroundTint">@color/hq_rosa</item>
+    </style>
+</resources>

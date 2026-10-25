@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <dimen name="hq_margen_pantalla">24dp</dimen>
+    <dimen name="hq_espacio_pequeno">8dp</dimen>
+    <dimen name="hq_espacio_medio">12dp</dimen>
+    <dimen name="hq_espacio_grande">24dp</dimen>
+    <dimen name="hq_boton_play">52dp</dimen>
+</resources>

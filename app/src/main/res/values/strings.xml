@@ -1,3 +1,9 @@
 <resources>
-    <string name="app_name">HachesQuizz</string>
+    <string name="app_name">Hache\'s Quizz</string>
+    <string name="municipio_defecto">Santa Cruz de Tenerife</string>
+    <string name="explorador_mapas">Explorador de Mapas</string>
+    <string name="galeria_fotos">Galería de Tenerife</string>
+    <string name="boton_ruta">Ruta</string>
+    <string name="boton_distancias">Distancias</string>
+    <string name="anadir_lugar">Añadir punto de interés</string>
 </resources>
